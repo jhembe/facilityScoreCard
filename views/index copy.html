@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facility Evaluation</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .green {
+            color: green;
+        }
+
+        .yellow {
+            color: goldenrod;
+        }
+
+        .red {
+            color: red;
+        }
+    </style>
+</head>
+
+<body class="container mt-4">
+    <h1 class="mb-4">Facility Evaluation</h1>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <!-- Facility selection dropdown -->
+            <select id="facilitySelect" class="form-control">
+                <option value="">Select a facility</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Question form container -->
+            <form id="questionsForm">
+                <div id="questionsContainer"></div>
+                <input type="hidden" name="facilityID" id="facilityIDInput">
+                <button type="submit" class="btn btn-primary">Submit Answers</button>
+            </form>
+            <div id="message" class="mt-3"></div>
+        </div>
+
+        <div class="col-md-4">
+            <h2>Summary Table</h2>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Facility Name</th>
+                        <th>Adolescent Friendly Score</th>
+                        <th>Client Friendly Score</th>
+                        <th>Total Score</th>
+                        <th>Facility Status</th>
+                    </tr>
+                </thead>
+                <tbody id="summaryTableBody">
+                    <!-- Table rows will be dynamically populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function () {
+            // Load facilities using AJAX
+            $.ajax({
+                url: "load_facilities.php",
+                method: "GET",
+                dataType: "json",
+                success: function (data) {
+                    var facilitySelect = $("#facilitySelect");
+
+                    $.each(data, function (index, facility) {
+                        $("<option>").val(facility.FacilityID).text(facility.FacilityName).appendTo(facilitySelect);
+                    });
+                }
+            });
+
+            // Highlight scores and calculate facility status
+            function highlightAndCalculateStatus(score, greenThreshold, yellowThreshold) {
+                if (score >= greenThreshold) {
+                    return `<span class="green">${score}</span>`;
+                } else if (score >= yellowThreshold) {
+                    return `<span class="yellow">${score}</span>`;
+                } else {
+                    return `<span class="red">${score}</span>`;
+                }
+            }
+
+            // Update summary table
+            function updateSummaryTable(summaryData) {
+                var summaryTableBody = $("#summaryTableBody");
+                summaryTableBody.empty();
+
+                $.each(summaryData, function (index, summary) {
+                    var row = $("<tr>");
+                    $("<td>").text(summary.FacilityName).appendTo(row);
+                    $("<td>").html(highlightAndCalculateStatus(summary.AdolescentFriendlyScore, 43, 36)).appendTo(row);
+                    $("<td>").html(highlightAndCalculateStatus(summary.ClientFriendlyScore, 32, 26)).appendTo(row);
+                    $("<td>").text(summary.TotalScore).appendTo(row);
+                    $("<td>").html(summary.FacilityStatus === 'Yes' ? '<span class="green">Yes</span>' : 'No').appendTo(row);
+                    row.appendTo(summaryTableBody);
+                });
+            }
+
+            // Load summary table using AJAX
+            $.ajax({
+                url: "get_summary.php",
+                method: "GET",
+                dataType: "json",
+                success: function (summaryData) {
+                    updateSummaryTable(summaryData);
+                }
+            });
+
+            // Load questions on facility selection change
+            $("#facilitySelect").change(function () {
+                var selectedFacilityID = $(this).val();
+
+                if (selectedFacilityID !== "") {
+                    $("#facilityIDInput").val(selectedFacilityID);
+                    $.ajax({
+                        url: "load_questions_copy.php",
+                        method: "GET",
+                        data: { facilityID: selectedFacilityID },
+                        dataType: "json",
+                        success: function (data) {
+                            var questionsContainer = $("#questionsContainer");
+                            questionsContainer.empty();
+
+                            $.each(data, function (categoryName, questions) {
+                                var categoryDiv = $("<div>").addClass("category");
+                                $("<h2>").text(categoryName).appendTo(categoryDiv);
+
+                                $.each(questions, function (index, question) {
+                                    var questionDiv = $("<div>").addClass("question");
+                                    $("<p>").text(question.QuestionText).appendTo(questionDiv);
+                                    $("<input>").attr({
+                                        type: "radio",
+                                        name: "q" + question.QuestionID,
+                                        value: "1"
+                                    }).appendTo(questionDiv).after("Yes");
+                                    $("<input>").attr({
+                                        type: "radio",
+                                        name: "q" + question.QuestionID,
+                                        value: "0"
+                                    }).appendTo(questionDiv).after("No");
+                                    questionDiv.appendTo(categoryDiv);
+                                });
+
+                                categoryDiv.appendTo(questionsContainer);
+                            });
+                        }
+                    });
+                }
+            });
+
+            // Submit form using AJAX
+            $("#questionsForm").submit(function (event) {
+                event.preventDefault();
+
+                var formData = $(this).serialize();
+
+                $.ajax({
+                    type: "POST",
+                    url: "submit_answers_copy.php",
+                    data: formData,
+                    success: function (response) {
+                        $("#message").html(response);
+
+                        // Refresh the summary table after submitting answers
+                        $.ajax({
+                            url: "get_summary.php",
+                            method: "GET",
+                            dataType: "json",
+                            success: function (summaryData) {
+                                updateSummaryTable(summaryData);
+                            }
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

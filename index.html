@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facility Evaluation</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .green {
+            color: green;
+        }
+
+        .yellow {
+            color: goldenrod;
+        }
+
+        .red {
+            color: red;
+        }
+
+        div.category {
+            border: 1px solid grey;
+            margin-bottom: 10px;
+        }
+
+        .category-header {
+            font-size: 1.5em;
+            padding: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .category-content {
+            padding: 10px;
+            display: none;
+        }
+
+        .radio-label {
+            padding: 10px;
+            display: block;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body class="container mt-4">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="#">Facility Evaluation</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <select id="facilitySelect" class="form-control">
+                        <option value="">Select a facility</option>
+                    </select>
+                </li>
+
+                <li class="nav-item">
+                    <!-- Year selection -->
+                    <div class="form-group">
+                        <!-- <label for="year">Select the Year:</label> -->
+                        <select id="year" name="year" class="form-control" required>
+                            <!-- Add options for years as needed -->
+                            <option value="2025">2025</option>
+                            <option value="2024">2024</option>
+                            <option value="2023">2023</option>
+                            <option value="2022">2022</option>
+                            <option value="2021">2021</option>
+                            <option value="2020">2020</option>
+                            <!-- Add more years as needed -->
+                        </select>
+                    </div>
+                </li>
+
+                <li class="nav-item">
+                    <!-- Quarter selection -->
+                    <div class="form-group">
+                        <!-- <label for="quarter">Select the Quarter:</label> -->
+                        <select id="quarter" name="quarter" class="form-control" required>
+                            <!-- Add options for quarters as needed -->
+                            <option value="Q1">Q1</option>
+                            <option value="Q2">Q2</option>
+                            <option value="Q3">Q3</option>
+                            <option value="Q4">Q4</option>
+                        </select>
+                    </div>
+                </li>
+
+            </ul>
+        </div>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <!-- Summary Table -->
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Facility Name</th>
+                        <th>Adolescent Friendly Score</th>
+                        <th>Client Friendly Score</th>
+                        <!-- <th>Total Score</th> -->
+                        <th>Facility Status</th>
+                    </tr>
+                </thead>
+                <tbody id="summaryTableBody">
+                    <!-- Table rows will be dynamically populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Question form container -->
+            <form id="questionsForm">
+                <!-- Categories will be dynamically populated here -->
+                <div id="categoriesContainer"></div>
+                <input type="hidden" name="facilityID" id="facilityIDInput">
+                <button type="submit" class="btn btn-primary">Submit Answers</button>
+            </form>
+            <div id="message" class="mt-3"></div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        // Your JavaScript code here
+        $(document).ready(function () {
+            // Function to create collapsible categories
+            function createCollapsibleCategory(categoryName, questions) {
+                var categoryDiv = $("<div>").addClass("category");
+                var categoryHeader = $("<h2>").addClass("category-header").text(categoryName);
+                var categoryContent = $("<div>").addClass("category-content");
+
+                // Add questions to the category content
+                $.each(questions, function (index, question) {
+                    var questionDiv = $("<div>").addClass("question");
+                    $("<p>").text(question.QuestionText).appendTo(questionDiv);
+
+                    // Improved radio buttons
+                    var radioDiv = $("<div>").addClass("radio-label");
+                    $("<input>").attr({
+                        type: "radio",
+                        name: "q" + question.QuestionID,
+                        value: "1"
+                    }).appendTo(radioDiv);
+                    $("<label>").text("Yes").appendTo(radioDiv);
+
+                    $("<input>").attr({
+                        type: "radio",
+                        name: "q" + question.QuestionID,
+                        value: "0"
+                    }).appendTo(radioDiv);
+                    $("<label>").text("No").appendTo(radioDiv);
+
+                    radioDiv.appendTo(questionDiv);
+                    questionDiv.appendTo(categoryContent);
+                });
+
+                // Add click event to toggle category content
+                categoryHeader.click(function () {
+                    categoryContent.slideToggle();
+                });
+
+                categoryHeader.appendTo(categoryDiv);
+                categoryContent.appendTo(categoryDiv);
+
+                return categoryDiv;
+            }
+
+            // Load facilities using AJAX
+            $.ajax({
+                url: "load_facilities.php",
+                method: "GET",
+                dataType: "json",
+                success: function (data) {
+                    var facilitySelect = $("#facilitySelect");
+
+                    $.each(data, function (index, facility) {
+                        $("<option>").val(facility.FacilityID).text(facility.FacilityName).appendTo(facilitySelect);
+                    });
+                }
+            });
+
+            // Highlight scores and calculate facility status
+            function highlightAndCalculateStatus(score, greenThreshold, yellowThreshold) {
+                if (score >= greenThreshold) {
+                    return `<span class="green">${score}</span>`;
+                } else if (score >= yellowThreshold) {
+                    return `<span class="yellow">${score}</span>`;
+                } else {
+                    return `<span class="red">${score}</span>`;
+                }
+            }
+
+            // Update summary table
+            function updateSummaryTable(summaryData) {
+                var summaryTableBody = $("#summaryTableBody");
+                summaryTableBody.empty();
+
+                $.each(summaryData, function (index, summary) {
+                    var row = $("<tr>");
+                    $("<td>").text(summary.FacilityName).appendTo(row);
+                    $("<td>").html(highlightAndCalculateStatus(summary.AdolescentFriendlyScore, 43, 36)).appendTo(row);
+                    $("<td>").html(highlightAndCalculateStatus(summary.ClientFriendlyScore, 32, 26)).appendTo(row);
+                    // $("<td>").text(summary.TotalScore).appendTo(row);
+                    $("<td>").html(summary.FacilityStatus === 'Yes' ? '<span class="green">Yes</span>' : 'No').appendTo(row);
+                    row.appendTo(summaryTableBody);
+                });
+            }
+
+            // Load summary table using AJAX
+            $.ajax({
+                url: "get_summary.php",
+                method: "GET",
+                dataType: "json",
+                success: function (summaryData) {
+                    updateSummaryTable(summaryData);
+                }
+            });
+
+            // Load questions on facility selection change
+            $("#facilitySelect").change(function () {
+                var selectedFacilityID = $(this).val();
+
+                if (selectedFacilityID !== "") {
+                    $("#facilityIDInput").val(selectedFacilityID);
+                    $.ajax({
+                        url: "load_questions_copy.php",
+                        method: "GET",
+                        data: { facilityID: selectedFacilityID },
+                        dataType: "json",
+                        success: function (data) {
+                            var categoriesContainer = $("#categoriesContainer");
+                            categoriesContainer.empty();
+
+                            // Create and append collapsible categories
+                            $.each(data, function (categoryName, questions) {
+                                var categoryDiv = createCollapsibleCategory(categoryName, questions);
+                                categoryDiv.appendTo(categoriesContainer);
+                            });
+                        }
+                    });
+                }
+            });
+
+            // Submit form using AJAX
+            $("#questionsForm").submit(function (event) {
+                event.preventDefault();
+
+                var formData = $(this).serialize();
+
+                $.ajax({
+                    type: "POST",
+                    url: "submit_answers_copy.php",
+                    data: formData,
+                    success: function (response) {
+                        $("#message").html(response);
+
+                        // Refresh the summary table after submitting answers
+                        $.ajax({
+                            url: "get_summary.php",
+                            method: "GET",
+                            dataType: "json",
+                            success: function (summaryData) {
+                                updateSummaryTable(summaryData);
+                            }
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>
